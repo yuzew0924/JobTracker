@@ -1,32 +1,36 @@
-# React + TypeScript + Vite
+# JobTracker
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+JobTracker is a lightweight job application tracker. The current Week 1 slice covers a user's job list and create, detail, edit, and delete flows.
 
-Currently, two official plugins are available:
+## Job fields and status colors
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Required: Company Name, Position Title, Status. Optional: Job URL, Location, Job Description, Notes, Application Deadline, Applied Date.
 
-## React Compiler
+| Status | Color |
+| --- | --- |
+| Interested | Violet |
+| Preparing | Amber |
+| Applied | Blue |
+| Interview | Purple |
+| Offer | Green |
+| Rejected | Red |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Start locally
 
-## Expanding the Oxlint configuration
+1. Install dependencies with `npm install`.
+2. Copy `.env.example` to `.env.local` and set the Supabase project URL and anon key.
+3. Apply `supabase/migrations/202610020001_create_jobs.sql` in the Supabase SQL Editor (or with the Supabase CLI).
+4. Start the Vite app with `npm run dev`.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+The `/jobs` routes require an authenticated Supabase session. The registration and login screens/session setup are the responsibility of Member B and should send signed-in users to `/jobs`.
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
+## Routes
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+- `/jobs` — current user's jobs and empty state
+- `/jobs/new` — create a job
+- `/jobs/:jobId` — details and delete confirmation
+- `/jobs/:jobId/edit` — edit a job
+
+The database migration enables row-level security and restricts every operation to rows whose `user_id` matches `auth.uid()`. New job inserts set `user_id` from the verified Supabase session; the database policy independently enforces ownership.
+
+Resume and Cover Letter controls are placeholders for Week 2, when the document table and private storage bucket are introduced.
