@@ -1,161 +1,74 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Link, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { createJob, deleteJob, getJob, listJobs, updateJob } from './lib/jobs'
 import { getSupabase, supabase } from './lib/supabase'
 import { JOB_STATUSES, type Job, type JobInput, type JobStatus } from './types/job'
 
-function errorMessage(error: unknown) {
-  if (error instanceof Error) return error.message
-  return '操作失败，请稍后重试。'
+const icons = { jobs: '▣', account: '♙', search: '⌕', logout: '↪', back: '←', plus: '+', pin: '⌖', calendar: '□', file: '▤', edit: '✎', trash: '♲', mail: '✉', lock: '▣', eye: '◉', more: '•••' } as const
+function Icon({ name }: { name: keyof typeof icons }) { return <span className={`icon icon-${name}`} aria-hidden="true">{icons[name]}</span> }
+function errorMessage(error: unknown) { return error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+function Logo({ compact = false }: { compact?: boolean }) { return <Link className={`logo${compact ? ' logo-compact' : ''}`} to="/"><span className="leaf-mark"><i /><i /></span><span>Jobfolio</span></Link> }
+
+function LandingPage() {
+  return <div className="landing-page"><header className="landing-nav"><Logo /><nav><Link to="/login">Log in</Link><Link className="primary-button" to="/register">Create account</Link></nav></header><main className="landing-main"><section className="hero-copy"><span className="kicker">A SIMPLER WAY TO JOB SEARCH</span><h1>Keep every job<br />application in one place.</h1><p>Save job details, and keep your current resume and cover letter with each application — so you’re always organized and ready.</p><div className="hero-actions"><Link className="primary-button large" to="/register">Get started <span>→</span></Link><Link className="outline-button large" to="/login">Log in</Link></div><small>No credit card required. Just a simpler job search.</small></section><DashboardPreview /></main><section className="feature-row"><Feature icon="⌕" title="Track jobs">Save key details like company, role, status and date — all in one place.</Feature><Feature icon="▤" title="Keep documents together">Attach one current resume and one current cover letter to each job.</Feature><Feature icon="▣" title="Private by default">Your data is yours. We keep it simple, secure and out of the spotlight.</Feature></section><div className="landing-footer"><i />A more organized job search starts here.<i /></div></div>
 }
+function Feature({ icon, title, children }: { icon: string; title: string; children: ReactNode }) { return <article className="feature"><span className="feature-icon">{icon}</span><h3>{title}</h3><p>{children}</p></article> }
+function DashboardPreview() { const rows = [['Spotify','Product Designer','Applied','Apr 12, 2024'],['Notion','UX Designer','Interview','Apr 3, 2024'],['Airbnb','Product Designer','Applied','Mar 28, 2024'],['Google','UX Researcher','Saved','Mar 20, 2024']]; return <section className="dashboard-preview"><div className="preview-head"><Logo compact /><span className="avatar">JD</span></div><div className="preview-title"><h2>My Applications</h2><span className="primary-button small">＋ Add job</span></div><div className="preview-table"><div className="preview-row preview-labels"><span>Company</span><span>Role</span><span>Status</span><span>Applied</span></div>{rows.map((row, index) => <div className="preview-row" key={row[0]}><span className="preview-company"><b className={`company-dot c${index}`}>{row[0][0]}</b><strong>{row[0]}</strong></span><span>{row[1]}</span><em>{row[2]}</em><span>{row[3]}</span></div>)}</div><small>4 applications</small></section> }
 
-function AuthGate({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<'loading' | 'signed-in' | 'signed-out' | 'missing-config'>(supabase ? 'loading' : 'missing-config')
+function AuthPage({ mode }: { mode: 'login' | 'register' }) {
+  const navigate = useNavigate(), registering = mode === 'register'
+  const [email, setEmail] = useState(''), [password, setPassword] = useState(''), [confirmPassword, setConfirmPassword] = useState(''), [visible, setVisible] = useState(false), [loading, setLoading] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('')
+  async function submit(event: FormEvent) { event.preventDefault(); setError(''); setMessage(''); if (!supabase) { setError('Supabase is not configured. Add your project keys to .env.local.'); return } if (registering && password !== confirmPassword) { setError('Passwords do not match.'); return } if (password.length < 8) { setError('Password must be at least 8 characters.'); return } setLoading(true); try { if (registering) { const { data, error: authError } = await getSupabase().auth.signUp({ email, password }); if (authError) throw authError; if (data.session) navigate('/jobs', { replace: true }); else setMessage('Check your email to confirm your account, then log in.') } else { const { error: authError } = await getSupabase().auth.signInWithPassword({ email, password }); if (authError) throw authError; navigate('/jobs', { replace: true }) } } catch (err) { setError(errorMessage(err)) } finally { setLoading(false) } }
+  async function forgotPassword() { if (!email) { setError('Enter your email first.'); return } if (!supabase) { setError('Supabase is not configured.'); return } const { error: resetError } = await getSupabase().auth.resetPasswordForEmail(email); setMessage(resetError ? '' : 'Password reset email sent.'); setError(resetError?.message || '') }
+  return <main className={`auth-page auth-${mode}`}><div className="auth-brand"><Logo /><span>{registering ? 'A simpler way to track your job search' : "A CLEARER PATH FOR WHAT'S NEXT"}</span></div><div className="botanical botanical-left" /><div className="botanical botanical-right" />{!registering && <aside className="auth-quote"><strong>Same resume.<br />Further opportunities.</strong><i /><p>Keep track. Stay organized.<br />Move forward.</p></aside>}<form className="auth-card" onSubmit={submit}><div className="auth-heading"><h1>{registering ? 'Create your account' : 'Welcome back'}</h1><p>{registering ? 'Start tracking your job applications in one place.' : 'Log in to your Jobfolio account'}</p></div><AuthField label="Email"><div className="input-with-icon">{!registering && <Icon name="mail" />}<input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email" /></div></AuthField><AuthField label="Password"><div className="input-with-icon">{!registering && <Icon name="lock" />}<input type={visible ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder={registering ? 'Create a strong password' : 'Enter your password'} required autoComplete={registering ? 'new-password' : 'current-password'} /><button type="button" className="eye-button" onClick={() => setVisible(v => !v)}><Icon name="eye" /></button></div>{registering && <small>Use at least 8 characters, with a mix of letters, numbers and symbols.</small>}</AuthField>{registering && <AuthField label="Confirm password"><div className="input-with-icon"><input type={visible ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Re-enter your password" required autoComplete="new-password" /><button type="button" className="eye-button" onClick={() => setVisible(v => !v)}><Icon name="eye" /></button></div></AuthField>}{!registering && <button className="forgot-button" type="button" onClick={() => void forgotPassword()}>Forgot password?</button>}{error && <div className="form-message error">{error}</div>}{message && <div className="form-message success">{message}</div>}<button className="primary-button auth-submit" disabled={loading}>{loading ? 'Please wait…' : registering ? 'Create account' : 'Log in'}</button><div className="auth-switch">{registering ? 'Already have an account?' : 'New to Jobfolio?'} <Link to={registering ? '/login' : '/register'}>{registering ? 'Log in' : 'Create an account'}</Link></div></form></main>
+}
+function AuthField({ label, children }: { label: string; children: ReactNode }) { return <label className="auth-field"><span>{label}</span>{children}</label> }
 
-  useEffect(() => {
-    if (!supabase) return
-    let active = true
-    getSupabase().auth.getSession().then(({ data, error }) => {
-      if (active) setState(error ? 'signed-out' : data.session ? 'signed-in' : 'signed-out')
-    })
-    const { data: { subscription } } = getSupabase().auth.onAuthStateChange((_event, session) => {
-      if (active) setState(session ? 'signed-in' : 'signed-out')
-    })
-    return () => { active = false; subscription.unsubscribe() }
-  }, [])
-
-  if (state === 'loading') return <div className="screen-message">正在确认登录状态…</div>
-  if (state === 'missing-config') return <div className="screen-message"><section className="notice-card"><span className="eyebrow">需要配置</span><h1>连接 Supabase</h1><p>复制 <code>.env.example</code> 为 <code>.env.local</code>，再填入项目 URL 和 anon key。</p></section></div>
-  if (state === 'signed-out') return <div className="screen-message"><section className="notice-card"><span className="eyebrow">JobTracker</span><h1>请先登录</h1><p>登录后才能查看和管理你的求职记录。</p><a className="button button-primary" href="/login">前往登录 <span aria-hidden="true">↗</span></a></section></div>
+function Protected({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<'loading' | 'in' | 'out' | 'missing'>(supabase ? 'loading' : 'missing')
+  useEffect(() => { if (!supabase) return; let active = true; getSupabase().auth.getSession().then(({ data }) => { if (active) setState(data.session ? 'in' : 'out') }); const { data: { subscription } } = getSupabase().auth.onAuthStateChange((_event, session) => { if (active) setState(session ? 'in' : 'out') }); return () => { active = false; subscription.unsubscribe() } }, [])
+  if (state === 'loading') return <div className="screen-state"><span className="spinner" />Loading…</div>
+  if (state === 'missing') return <div className="screen-state"><section className="config-card"><Logo /><h1>Connect Supabase</h1><p>Copy <code>.env.example</code> to <code>.env.local</code> and add your project URL and anon key.</p></section></div>
+  if (state === 'out') return <Navigate to="/login" replace />
   return <>{children}</>
 }
+function AppShell({ children }: { children: ReactNode }) { const location = useLocation(); const [email, setEmail] = useState(''); useEffect(() => { getSupabase().auth.getUser().then(({ data }) => setEmail(data.user?.email || '')) }, []); return <div className="app-layout"><aside className="sidebar"><Logo /><nav><Link className={location.pathname.startsWith('/jobs') ? 'active' : ''} to="/jobs"><Icon name="jobs" />Jobs</Link><span><Icon name="account" />Account</span></nav><div className="sidebar-user"><p>{email}</p><button onClick={() => void getSupabase().auth.signOut()}><Icon name="logout" />Log out</button></div></aside><div className="app-content">{children}</div></div> }
 
-function Shell({ children }: { children: React.ReactNode }) {
-  return <div className="app-shell"><header className="topbar"><Link className="brand" to="/jobs"><span className="brand-mark">J</span><span>job<span className="brand-light">tracker</span></span></Link><span className="topbar-label">求职进度，一目了然</span></header>{children}<footer className="app-footer">JOBTRACKER <span>·</span> 你的求职工作台</footer></div>
+function JobsPage() {
+  const [jobs, setJobs] = useState<Job[]>([]), [loading, setLoading] = useState(true), [error, setError] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('All')
+  useEffect(() => { let active = true; listJobs().then(data => { if (active) setJobs(data) }).catch(err => { if (active) setError(errorMessage(err)) }).finally(() => { if (active) setLoading(false) }); return () => { active = false } }, [])
+  const filtered = useMemo(() => jobs.filter(job => (status === 'All' || job.status === status) && `${job.company_name} ${job.position_title}`.toLowerCase().includes(query.toLowerCase())), [jobs, query, status])
+  return <main className="workspace jobs-page"><header className="workspace-heading"><div><h1>My Jobs</h1><p>Track every opportunity and keep its files together.</p></div><Link className="primary-button add-button" to="/jobs/new"><Icon name="plus" />Add job</Link></header><div className="filters"><label className="search-box"><Icon name="search" /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search companies or positions..." /></label><label className="status-filter"><span>Status</span><select value={status} onChange={e => setStatus(e.target.value)}><option>All</option>{JOB_STATUSES.map(value => <option key={value}>{value}</option>)}</select></label></div>{error && <div className="form-message error">{error}</div>}{loading ? <div className="loading-panel"><span className="spinner" />Loading jobs…</div> : <JobsTable jobs={filtered} total={jobs.length} />}</main>
 }
-
-function App() {
-  return <AuthGate><Shell><Routes>
-    <Route path="/" element={<Navigate to="/jobs" replace />} />
-    <Route path="/jobs" element={<JobListPage />} />
-    <Route path="/jobs/new" element={<JobFormPage />} />
-    <Route path="/jobs/:jobId" element={<JobDetailPage />} />
-    <Route path="/jobs/:jobId/edit" element={<JobFormPage />} />
-    <Route path="*" element={<NotFound />} />
-  </Routes></Shell></AuthGate>
-}
-
-function JobListPage() {
-  const [jobs, setJobs] = useState<Job[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const refresh = useCallback(async () => {
-    setLoading(true); setError('')
-    try { setJobs(await listJobs()) } catch (err) { setError(errorMessage(err)) } finally { setLoading(false) }
-  }, [])
-  useEffect(() => {
-    let active = true
-    listJobs().then(data => { if (active) setJobs(data) }).catch(err => { if (active) setError(errorMessage(err)) }).finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [])
-  const counts = JOB_STATUSES.map(status => ({ status, count: jobs.filter(job => job.status === status).length }))
-
-  return <main className="page-wrap">
-    <div className="page-heading"><div><span className="eyebrow">YOUR PIPELINE</span><h1>求职记录</h1><p>把每一次申请和下一步计划都整理好。</p></div><Link className="button button-primary" to="/jobs/new"><span className="plus">＋</span> 添加职位</Link></div>
-    <section className="summary-row" aria-label="状态统计">{counts.map(item => <div className="summary-item" key={item.status}><span className={`status-dot dot-${item.status.toLowerCase()}`} /><span>{item.status}</span><strong>{item.count}</strong></div>)}</section>
-    {error && <div className="alert alert-error" role="alert">{error}<button className="text-button" onClick={() => void refresh()}>重试</button></div>}
-    {loading ? <div className="loading-card"><span className="spinner" />正在加载职位…</div> : jobs.length === 0 ? <section className="empty-state"><div className="empty-icon">✳</div><span className="eyebrow">从这里开始</span><h2>还没有求职记录</h2><p>记录你感兴趣的机会，持续跟进申请进度。</p><Link className="button button-primary" to="/jobs/new">添加第一个职位 <span aria-hidden="true">→</span></Link></section> : <section className="job-list" aria-label="职位列表">{jobs.map(job => <JobCard key={job.id} job={job} />)}</section>}
-  </main>
-}
-
-function JobCard({ job }: { job: Job }) {
-  return <Link className="job-card" to={`/jobs/${job.id}`}>
-    <div className="company-avatar" aria-hidden="true">{job.company_name.trim().slice(0, 1).toUpperCase()}</div>
-    <div className="job-main"><div className="job-title-line"><h2>{job.position_title}</h2><StatusBadge status={job.status} /></div><p>{job.company_name}{job.location ? <><span className="meta-separator">·</span>{job.location}</> : null}</p></div>
-    <div className="job-card-side"><span className="date-caption">{job.applied_date ? `申请于 ${formatDate(job.applied_date)}` : `更新于 ${formatDate(job.updated_at.slice(0, 10))}`}</span><span className="materials">Resume <b>—</b><i /> Cover Letter <b>—</b></span></div><span className="card-arrow" aria-hidden="true">↗</span>
-  </Link>
-}
-
-function StatusBadge({ status }: { status: JobStatus }) { return <span className={`status-badge badge-${status.toLowerCase()}`}><span className="status-dot" />{status}</span> }
-
-function JobDetailPage() {
-  const { jobId = '' } = useParams()
-  const navigate = useNavigate()
-  const [job, setJob] = useState<Job | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [deleting, setDeleting] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  useEffect(() => {
-    let active = true
-    getJob(jobId).then(value => { if (active) setJob(value) }).catch(err => { if (active) setError(errorMessage(err)) }).finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [jobId])
-  async function handleDelete() {
-    setDeleting(true); setError('')
-    try { await deleteJob(jobId); navigate('/jobs', { replace: true }) } catch (err) { setError(errorMessage(err)); setDeleting(false) }
-  }
-  if (loading) return <main className="page-wrap"><div className="loading-card"><span className="spinner" />正在加载职位…</div></main>
-  if (!job) return <NotFound detail={error || '该职位不存在，或你没有查看权限。'} />
-  return <main className="page-wrap detail-page">
-    <Link className="back-link" to="/jobs">← 返回职位列表</Link>
-    {error && <div className="alert alert-error" role="alert">{error}</div>}
-    <div className="detail-heading"><div className="company-avatar avatar-large">{job.company_name.slice(0, 1).toUpperCase()}</div><div className="detail-title"><span className="eyebrow">JOB DETAILS</span><h1>{job.position_title}</h1><p>{job.company_name}{job.location ? ` · ${job.location}` : ''}</p></div><StatusBadge status={job.status} /></div>
-    <div className="detail-actions"><Link className="button button-secondary" to={`/jobs/${job.id}/edit`}>编辑职位</Link><button className="button button-danger-quiet" onClick={() => setConfirmDelete(true)}>删除</button></div>
-    <section className="detail-card"><div className="section-heading"><div><span className="eyebrow">OVERVIEW</span><h2>职位信息</h2></div></div>
-      <div className="info-grid"><Info label="申请状态"><StatusBadge status={job.status} /></Info><Info label="工作地点">{job.location || '—'}</Info><Info label="申请截止日期">{formatDate(job.application_deadline) || '—'}</Info><Info label="申请日期">{formatDate(job.applied_date) || '—'}</Info><Info label="职位链接">{job.job_url ? <a href={job.job_url} target="_blank" rel="noreferrer">打开职位页面 ↗</a> : '—'}</Info><Info label="最近更新">{formatDate(job.updated_at.slice(0, 10))}</Info></div>
-      <div className="long-field"><h3>职位描述</h3><p>{job.job_description || '暂未添加职位描述。'}</p></div><div className="long-field"><h3>备注</h3><p>{job.notes || '暂未添加备注。'}</p></div>
-    </section>
-    <section className="documents-placeholder"><div><span className="eyebrow">WEEK 2</span><h2>求职材料</h2><p>Resume 和 Cover Letter 上传功能将在下一阶段接入。</p></div><div className="placeholder-doc">Resume <b>—</b></div><div className="placeholder-doc">Cover Letter <b>—</b></div></section>
-    {confirmDelete && <div className="modal-backdrop" role="presentation"><section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-title"><span className="eyebrow">确认删除</span><h2 id="delete-title">删除这条职位记录？</h2><p>“{job.position_title} · {job.company_name}” 将被永久删除，此操作无法撤销。</p><div className="dialog-actions"><button className="button button-secondary" onClick={() => setConfirmDelete(false)} disabled={deleting}>取消</button><button className="button button-danger" onClick={() => void handleDelete()} disabled={deleting}>{deleting ? '正在删除…' : '确认删除'}</button></div></section></div>}
-  </main>
-}
-
-function Info({ label, children }: { label: string; children: React.ReactNode }) { return <div className="info-item"><span>{label}</span><strong>{children}</strong></div> }
+function JobsTable({ jobs, total }: { jobs: Job[]; total: number }) { return <section className="jobs-table"><div className="jobs-row jobs-labels"><span>Company</span><span>Position</span><span>Status</span><span>Location</span><span>Applied date</span><span>Resume</span><span>Cover letter</span><span>Actions</span></div>{jobs.length ? jobs.map(job => <Link className="jobs-row jobs-data" to={`/jobs/${job.id}`} key={job.id}><span className="company-cell"><b>{job.company_name[0]?.toUpperCase()}</b><strong>{job.company_name}</strong></span><span>{job.position_title}</span><span><StatusBadge status={job.status} /></span><span>{job.location || '—'}</span><span>{formatDate(job.applied_date) || '—'}</span><DocumentState /><DocumentState /><span className="more-cell"><Icon name="more" /></span></Link>) : <div className="empty-jobs"><h2>No jobs found</h2><p>{total ? 'Try changing your search or status filter.' : 'Add your first opportunity to get started.'}</p></div>}<footer>Showing {jobs.length} of {total} jobs</footer></section> }
+function DocumentState() { return <span className="document-state missing"><i>−</i>Missing</span> }
+function StatusBadge({ status }: { status: JobStatus }) { return <span className={`status-pill status-${status.toLowerCase()}`}><i />{status}</span> }
 
 function JobFormPage() {
-  const { jobId } = useParams()
-  const editing = Boolean(jobId)
-  const navigate = useNavigate()
-  const [initializing, setInitializing] = useState(editing)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const { jobId } = useParams(), editing = Boolean(jobId), navigate = useNavigate()
+  const [initializing, setInitializing] = useState(editing), [saving, setSaving] = useState(false), [error, setError] = useState('')
   const [values, setValues] = useState<JobInput>({ company_name: '', position_title: '', status: 'Interested', job_url: '', location: '', job_description: '', notes: '', application_deadline: '', applied_date: '' })
-
-  useEffect(() => {
-    if (!jobId) return
-    let active = true
-    getJob(jobId).then(job => {
-      if (!active) return
-      if (!job) { navigate('/not-found', { replace: true }); return }
-      setValues({ company_name: job.company_name, position_title: job.position_title, status: job.status, job_url: job.job_url || '', location: job.location || '', job_description: job.job_description || '', notes: job.notes || '', application_deadline: job.application_deadline || '', applied_date: job.applied_date || '' })
-    }).catch(err => { if (active) setError(errorMessage(err)) }).finally(() => { if (active) setInitializing(false) })
-    return () => { active = false }
-  }, [jobId, navigate])
-
+  useEffect(() => { if (!jobId) return; let active = true; getJob(jobId).then(job => { if (active && job) setValues({ company_name: job.company_name, position_title: job.position_title, status: job.status, job_url: job.job_url || '', location: job.location || '', job_description: job.job_description || '', notes: job.notes || '', application_deadline: job.application_deadline || '', applied_date: job.applied_date || '' }) }).catch(err => setError(errorMessage(err))).finally(() => setInitializing(false)); return () => { active = false } }, [jobId])
   function setField<K extends keyof JobInput>(key: K, value: JobInput[K]) { setValues(current => ({ ...current, [key]: value })) }
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError('')
-    if (!values.company_name.trim() || !values.position_title.trim()) { setError('请填写公司名称和职位名称。'); return }
-    if (values.job_url && !/^https?:\/\//i.test(values.job_url)) { setError('职位链接请以 http:// 或 https:// 开头。'); return }
-    const cleaned: JobInput = { ...values, company_name: values.company_name.trim(), position_title: values.position_title.trim(), job_url: values.job_url?.trim() || null, location: values.location?.trim() || null, job_description: values.job_description?.trim() || null, notes: values.notes?.trim() || null, application_deadline: values.application_deadline || null, applied_date: values.applied_date || null }
-    setSaving(true)
-    try { const job = editing && jobId ? await updateJob(jobId, cleaned) : await createJob(cleaned); navigate(`/jobs/${job.id}`, { replace: true }) } catch (err) { setError(errorMessage(err)); setSaving(false) }
-  }
-  if (initializing) return <main className="page-wrap"><div className="loading-card"><span className="spinner" />正在加载职位…</div></main>
-  return <main className="page-wrap form-page"><Link className="back-link" to={editing && jobId ? `/jobs/${jobId}` : '/jobs'}>← 返回{editing ? '职位详情' : '职位列表'}</Link>
-    <div className="form-heading"><span className="eyebrow">{editing ? 'UPDATE OPPORTUNITY' : 'NEW OPPORTUNITY'}</span><h1>{editing ? '编辑职位' : '添加职位'}</h1><p>先记下关键信息，之后也可以随时补充。</p></div>
-    {error && <div className="alert alert-error" role="alert">{error}</div>}
-    <form className="job-form" onSubmit={handleSubmit}>
-      <div className="form-section"><h2>基本信息</h2><div className="form-grid"><Field label="公司名称" required><input autoFocus value={values.company_name} onChange={e => setField('company_name', e.target.value)} placeholder="例如 Stripe" maxLength={120} required /></Field><Field label="职位名称" required><input value={values.position_title} onChange={e => setField('position_title', e.target.value)} placeholder="例如 Product Designer" maxLength={160} required /></Field><Field label="申请状态" required><select value={values.status} onChange={e => setField('status', e.target.value as JobStatus)}>{JOB_STATUSES.map(status => <option key={status}>{status}</option>)}</select></Field><Field label="工作地点"><input value={values.location || ''} onChange={e => setField('location', e.target.value)} placeholder="例如 San Francisco, CA" maxLength={160} /></Field><Field label="职位链接" wide><input type="url" value={values.job_url || ''} onChange={e => setField('job_url', e.target.value)} placeholder="https://company.com/careers/…" /></Field><Field label="申请截止日期"><input type="date" value={values.application_deadline || ''} onChange={e => setField('application_deadline', e.target.value)} /></Field><Field label="申请日期"><input type="date" value={values.applied_date || ''} onChange={e => setField('applied_date', e.target.value)} /></Field></div></div>
-      <div className="form-section"><h2>补充信息 <span>选填</span></h2><div className="form-grid"><Field label="职位描述" wide><textarea rows={5} value={values.job_description || ''} onChange={e => setField('job_description', e.target.value)} placeholder="粘贴职位描述，方便之后查阅。" maxLength={12000} /></Field><Field label="备注" wide><textarea rows={4} value={values.notes || ''} onChange={e => setField('notes', e.target.value)} placeholder="记录联系人、后续跟进或面试准备事项。" maxLength={5000} /></Field></div></div>
-      <div className="form-actions"><Link className="button button-secondary" to={editing && jobId ? `/jobs/${jobId}` : '/jobs'}>取消</Link><button className="button button-primary" type="submit" disabled={saving}>{saving ? '正在保存…' : editing ? '保存修改' : '创建职位'}</button></div>
-    </form>
-  </main>
+  async function submit(event: FormEvent) { event.preventDefault(); setSaving(true); setError(''); try { const cleaned = { ...values, company_name: values.company_name.trim(), position_title: values.position_title.trim(), job_url: values.job_url?.trim() || null, location: values.location?.trim() || null, job_description: values.job_description?.trim() || null, notes: values.notes?.trim() || null, application_deadline: values.application_deadline || null, applied_date: values.applied_date || null }; const job = editing && jobId ? await updateJob(jobId, cleaned) : await createJob(cleaned); navigate(`/jobs/${job.id}`) } catch (err) { setError(errorMessage(err)); setSaving(false) } }
+  if (initializing) return <div className="screen-state"><span className="spinner" />Loading job…</div>
+  return <main className="workspace form-workspace"><Link className="back-link" to={editing ? `/jobs/${jobId}` : '/jobs'}><Icon name="back" />Back to {editing ? 'job' : 'jobs'}</Link><header className="form-title"><h1>{editing ? 'Edit job' : 'Add a job'}</h1><p>{editing ? 'Update the details for this job application.' : 'Track a new opportunity and keep your application details in one place.'}</p></header><form className="job-form" onSubmit={submit}>{error && <div className="form-message error">{error}</div>}<div className="form-grid"><Field label="Company name" required><input autoFocus value={values.company_name} onChange={e => setField('company_name', e.target.value)} placeholder="e.g. Acme Inc." required /></Field><Field label="Position title" required><input value={values.position_title} onChange={e => setField('position_title', e.target.value)} placeholder="e.g. Software Engineer" required /></Field><Field label={editing ? 'Job posting URL' : 'Job URL'} wide={editing}><input type="url" value={values.job_url || ''} onChange={e => setField('job_url', e.target.value)} placeholder="https://..." /></Field><Field label="Location"><input value={values.location || ''} onChange={e => setField('location', e.target.value)} placeholder="e.g. San Francisco, CA or Remote" /></Field><Field label="Status" required><select value={values.status} onChange={e => setField('status', e.target.value as JobStatus)}>{JOB_STATUSES.map(value => <option key={value}>{value}</option>)}</select></Field><Field label="Application deadline"><input type="date" value={values.application_deadline || ''} onChange={e => setField('application_deadline', e.target.value)} /></Field><Field label="Applied date"><input type="date" value={values.applied_date || ''} onChange={e => setField('applied_date', e.target.value)} /></Field><Field label="Job description" wide><textarea rows={5} value={values.job_description || ''} onChange={e => setField('job_description', e.target.value)} placeholder="Paste the job description here..." /></Field><Field label="Notes" wide><textarea rows={4} value={values.notes || ''} onChange={e => setField('notes', e.target.value)} placeholder="Add any notes about this job..." /></Field></div><div className="form-actions"><Link className="outline-button" to={editing ? `/jobs/${jobId}` : '/jobs'}>Cancel</Link><button className="primary-button" disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Create job'}</button></div></form></main>
 }
+function Field({ label, required, wide, children }: { label: string; required?: boolean; wide?: boolean; children: ReactNode }) { return <label className={`field${wide ? ' field-wide' : ''}`}><span>{label}{required && <em> *</em>}</span>{children}</label> }
 
-function Field({ label, required, wide, children }: { label: string; required?: boolean; wide?: boolean; children: React.ReactNode }) { return <label className={`field${wide ? ' field-wide' : ''}`}><span>{label}{required && <em> *</em>}</span>{children}</label> }
-function NotFound({ detail = '页面不存在。' }: { detail?: string }) { return <main className="page-wrap not-found"><span className="eyebrow">404</span><h1>找不到这条记录</h1><p>{detail}</p><Link className="button button-secondary" to="/jobs">返回职位列表</Link></main> }
-function formatDate(value: string | null) { if (!value) return ''; const date = new Date(`${value.slice(0, 10)}T12:00:00`); return new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' }).format(date) }
+function JobDetailPage() {
+  const { jobId = '' } = useParams(), navigate = useNavigate()
+  const [job, setJob] = useState<Job | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(''), [confirming, setConfirming] = useState(false)
+  useEffect(() => { let active = true; getJob(jobId).then(data => { if (active) setJob(data) }).catch(err => setError(errorMessage(err))).finally(() => setLoading(false)); return () => { active = false } }, [jobId])
+  async function remove() { try { await deleteJob(jobId); navigate('/jobs') } catch (err) { setError(errorMessage(err)) } }
+  if (loading) return <div className="screen-state"><span className="spinner" />Loading job…</div>
+  if (!job) return <main className="workspace"><h1>Job not found</h1><p>{error}</p><Link to="/jobs">Back to jobs</Link></main>
+  return <main className="workspace detail-workspace"><Link className="back-link" to="/jobs"><Icon name="back" />Back to jobs</Link><header className="detail-hero"><span className="company-logo-large">{job.company_name[0]?.toUpperCase()}</span><div><div className="detail-title-row"><h1>{job.position_title}</h1><StatusBadge status={job.status} /></div><h2>{job.company_name}</h2><p><span><Icon name="pin" />{job.location || 'No location'}</span><span><Icon name="calendar" />{job.applied_date ? `Applied on ${formatDate(job.applied_date)}` : 'Not applied yet'}</span></p></div><div className="detail-buttons"><Link className="primary-button" to={`/jobs/${job.id}/edit`}><Icon name="edit" />Edit job</Link><button className="danger-button" onClick={() => setConfirming(true)}><Icon name="trash" />Delete</button></div></header>{error && <div className="form-message error">{error}</div>}<div className="detail-columns"><div className="detail-left"><InfoCard title="Job information"><dl><dt>Job URL</dt><dd>{job.job_url ? <a href={job.job_url} target="_blank" rel="noreferrer">{job.job_url} ↗</a> : '—'}</dd><dt>Application deadline</dt><dd>{formatDate(job.application_deadline) || '—'}</dd><dt>Date applied</dt><dd>{formatDate(job.applied_date) || '—'}</dd><dt>Last updated</dt><dd>{formatDate(job.updated_at) || '—'}</dd></dl></InfoCard><TextCard title="Job description" text={job.job_description || 'No job description added.'} /><TextCard title="Notes" text={job.notes || 'No notes added.'} footer={`Last updated ${formatDate(job.updated_at)}`} /></div><div className="detail-right"><DocumentCard title="Resume" /><DocumentCard title="Cover letter" /></div></div>{confirming && <div className="modal"><section><h2>Delete this job?</h2><p>This action cannot be undone.</p><div><button className="outline-button" onClick={() => setConfirming(false)}>Cancel</button><button className="danger-button solid" onClick={() => void remove()}>Delete job</button></div></section></div>}</main>
+}
+function InfoCard({ title, children }: { title: string; children: ReactNode }) { return <section className="detail-card"><h3>{title}</h3>{children}</section> }
+function TextCard({ title, text, footer }: { title: string; text: string; footer?: string }) { return <InfoCard title={title}><p className="long-text">{text}</p>{footer && <small className="card-footer">{footer}</small>}</InfoCard> }
+function DocumentCard({ title }: { title: string }) { return <section className="detail-card document-card"><h3><Icon name="file" />{title}</h3><div className="upload-empty"><Icon name="file" /><strong>No {title.toLowerCase()} uploaded</strong><p>Add a {title.toLowerCase()} to keep it with this job.</p><button className="primary-button" type="button">↥ Upload file</button><small>PDF or DOCX, up to 10 MB</small></div></section> }
+function formatDate(value: string | null) { if (!value) return ''; const date = new Date(`${value.slice(0, 10)}T12:00:00`); return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date) }
 
+function App() { return <Routes><Route path="/" element={<LandingPage />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/jobs/*" element={<Protected><AppShell><Routes><Route index element={<JobsPage />} /><Route path="new" element={<JobFormPage />} /><Route path=":jobId" element={<JobDetailPage />} /><Route path=":jobId/edit" element={<JobFormPage />} /></Routes></AppShell></Protected>} /><Route path="*" element={<Navigate to="/" replace />} /></Routes> }
 export default App
