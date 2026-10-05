@@ -1,36 +1,68 @@
-# JobTracker
+# Jobfolio
 
-JobTracker is a lightweight job application tracker. The current Week 1 slice covers a user's job list and create, detail, edit, and delete flows.
+A private job application tracker built with Next.js 16, TypeScript, Tailwind CSS 4, and Supabase.
 
-## Job fields and status colors
+## Features
 
-Required: Company Name, Position Title, Status. Optional: Job URL, Location, Job Description, Notes, Application Deadline, Applied Date.
+- Email/password registration, login, password reset, and logout
+- Cookie-based Supabase session refresh for browser and server rendering
+- Server-protected `/jobs` routes and authenticated-page redirects
+- Private user profiles created automatically from `auth.users`
+- Job list, search, status filter, create, view, update, and delete flows
+- Row Level Security for both `profiles` and `jobs`
 
-| Status | Color |
-| --- | --- |
-| Interested | Violet |
-| Preparing | Amber |
-| Applied | Blue |
-| Interview | Purple |
-| Offer | Green |
-| Rejected | Red |
+## Local setup
 
-## Start locally
+1. Install dependencies:
 
-1. Install dependencies with `npm install`.
-2. Copy `.env.example` to `.env.local` and set the Supabase project URL and anon key.
-3. Apply `supabase/migrations/202610020001_create_jobs.sql` in the Supabase SQL Editor (or with the Supabase CLI).
-4. Start the Vite app with `npm run dev`.
+   ```bash
+   npm install
+   ```
 
-The `/jobs` routes require an authenticated Supabase session. The registration and login screens/session setup are the responsibility of Member B and should send signed-in users to `/jobs`.
+2. Copy `.env.example` to `.env.local` and replace both placeholder values:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+3. Apply the SQL files in chronological order using the Supabase SQL Editor or CLI:
+
+   - `supabase/migrations/202610020001_create_jobs.sql`
+   - `supabase/migrations/202610040001_create_profiles.sql`
+
+4. In Supabase Auth URL Configuration, set the site URL to `http://localhost:3000` for local development and add `/auth/confirm` as an allowed redirect path for each deployed domain.
+
+5. Start the app:
+
+   ```bash
+   npm run dev
+   ```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Verification
+
+```bash
+npm run lint
+npm run build
+```
+
+## Environment variables
+
+Only the public Supabase project URL and publishable key are used by this app. Never commit `.env.local`, service-role keys, database passwords, or access tokens. The repository ignores all `.env*` files except `.env.example`.
+
+For Vercel, configure:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 
 ## Routes
 
-- `/jobs` — current user's jobs and empty state
-- `/jobs/new` — create a job
-- `/jobs/:jobId` — details and delete confirmation
-- `/jobs/:jobId/edit` — edit a job
-
-The database migration enables row-level security and restricts every operation to rows whose `user_id` matches `auth.uid()`. New job inserts set `user_id` from the verified Supabase session; the database policy independently enforces ownership.
-
-Resume and Cover Letter controls are placeholders for Week 2, when the document table and private storage bucket are introduced.
+- `/` — public marketing page
+- `/register` — account registration
+- `/login` — account login
+- `/auth/confirm` — email confirmation callback
+- `/jobs` — current user's jobs (protected)
+- `/jobs/new` — add a job (protected)
+- `/jobs/[jobId]` — job details (protected)
+- `/jobs/[jobId]/edit` — edit a job (protected)
