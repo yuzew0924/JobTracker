@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 .next
 .vercel
+supabase/.temp/
 .env
 .env.*
 !.env.example
