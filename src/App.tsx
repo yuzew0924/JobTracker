@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ChangeEvent, type ComponentProps, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react'
 import NextLink from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createJob, deleteJob, listJobs, updateJob } from '@/lib/jobs'
 import { createClient } from '@/lib/supabase/client'
 import { JOB_STATUSES, type Job, type JobInput, type JobStatus } from '@/lib/types/job'
+import { JobDocumentCard } from '@/src/components/JobDocumentCard'
 
 function Link({ to, href, ...props }: Omit<ComponentProps<typeof NextLink>, 'href'> & { to?: string; href?: string }) { return <NextLink href={href ?? to ?? '/'} {...props} /> }
 function useNavigate() { const router = useRouter(); return (path: string, options?: { replace?: boolean }) => options?.replace ? router.replace(path) : router.push(path) }
@@ -72,56 +73,8 @@ export function JobDetailPage({ initialJob }: { initialJob: Job }) {
   const [error, setError] = useState(''), [confirming, setConfirming] = useState(false)
   const job = initialJob
   async function remove() { try { await deleteJob(getSupabase(), job.id); navigate('/jobs') } catch (err) { setError(errorMessage(err)) } }
-  return <main className="workspace detail-workspace"><Link className="back-link" to="/jobs"><Icon name="back" />Back to jobs</Link><header className="detail-hero"><span className="company-logo-large">{job.company_name[0]?.toUpperCase()}</span><div><div className="detail-title-row"><h1>{job.position_title}</h1><StatusBadge status={job.status} /></div><h2>{job.company_name}</h2><p><span><Icon name="pin" />{job.location || 'No location'}</span><span><Icon name="calendar" />{job.applied_date ? `Applied on ${formatDate(job.applied_date)}` : 'Not applied yet'}</span></p></div><div className="detail-buttons"><Link className="primary-button" to={`/jobs/${job.id}/edit`}><Icon name="edit" />Edit job</Link><button className="danger-button" onClick={() => setConfirming(true)}><Icon name="trash" />Delete</button></div></header>{error && <div className="form-message error">{error}</div>}<div className="detail-columns"><div className="detail-left"><InfoCard title="Job information"><dl><dt>Job URL</dt><dd>{job.job_url ? <a href={job.job_url} target="_blank" rel="noreferrer">{job.job_url} ↗</a> : '—'}</dd><dt>Application deadline</dt><dd>{formatDate(job.application_deadline) || '—'}</dd><dt>Date applied</dt><dd>{formatDate(job.applied_date) || '—'}</dd><dt>Last updated</dt><dd>{formatDate(job.updated_at) || '—'}</dd></dl></InfoCard><TextCard title="Job description" text={job.job_description || 'No job description added.'} /><TextCard title="Notes" text={job.notes || 'No notes added.'} footer={`Last updated ${formatDate(job.updated_at)}`} /></div><div className="detail-right"><DocumentCard title="Resume" /><DocumentCard title="Cover letter" /></div></div>{confirming && <div className="modal"><section><h2>Delete this job?</h2><p>This action cannot be undone.</p><div><button className="outline-button" onClick={() => setConfirming(false)}>Cancel</button><button className="danger-button solid" onClick={() => void remove()}>Delete job</button></div></section></div>}</main>
+  return <main className="workspace detail-workspace"><Link className="back-link" to="/jobs"><Icon name="back" />Back to jobs</Link><header className="detail-hero"><span className="company-logo-large">{job.company_name[0]?.toUpperCase()}</span><div><div className="detail-title-row"><h1>{job.position_title}</h1><StatusBadge status={job.status} /></div><h2>{job.company_name}</h2><p><span><Icon name="pin" />{job.location || 'No location'}</span><span><Icon name="calendar" />{job.applied_date ? `Applied on ${formatDate(job.applied_date)}` : 'Not applied yet'}</span></p></div><div className="detail-buttons"><Link className="primary-button" to={`/jobs/${job.id}/edit`}><Icon name="edit" />Edit job</Link><button className="danger-button" onClick={() => setConfirming(true)}><Icon name="trash" />Delete</button></div></header>{error && <div className="form-message error">{error}</div>}<div className="detail-columns"><div className="detail-left"><InfoCard title="Job information"><dl><dt>Job URL</dt><dd>{job.job_url ? <a href={job.job_url} target="_blank" rel="noreferrer">{job.job_url} ↗</a> : '—'}</dd><dt>Application deadline</dt><dd>{formatDate(job.application_deadline) || '—'}</dd><dt>Date applied</dt><dd>{formatDate(job.applied_date) || '—'}</dd><dt>Last updated</dt><dd>{formatDate(job.updated_at) || '—'}</dd></dl></InfoCard><TextCard title="Job description" text={job.job_description || 'No job description added.'} /><TextCard title="Notes" text={job.notes || 'No notes added.'} footer={`Last updated ${formatDate(job.updated_at)}`} /></div><div className="detail-right"><JobDocumentCard title="Resume" /><JobDocumentCard title="Cover letter" /></div></div>{confirming && <div className="modal"><section><h2>Delete this job?</h2><p>This action cannot be undone.</p><div><button className="outline-button" onClick={() => setConfirming(false)}>Cancel</button><button className="danger-button solid" onClick={() => void remove()}>Delete job</button></div></section></div>}</main>
 }
 function InfoCard({ title, children }: { title: string; children: ReactNode }) { return <section className="detail-card"><h3>{title}</h3>{children}</section> }
 function TextCard({ title, text, footer }: { title: string; text: string; footer?: string }) { return <InfoCard title={title}><p className="long-text">{text}</p>{footer && <small className="card-footer">{footer}</small>}</InfoCard> }
-function DocumentCard({ title }: { title: string }) {
-  const [file, setFile] = useState<File | null>(null)
-  const [error, setError] = useState('')
-  const inputId = `document-${title.toLowerCase().replaceAll(' ', '-')}`
-
-  function selectFile(event: ChangeEvent<HTMLInputElement>) {
-    const selected = event.currentTarget.files?.[0]
-    if (!selected) return
-    const extension = selected.name.toLowerCase().split('.').pop()
-    if (extension !== 'pdf' && extension !== 'docx') {
-      setFile(null)
-      setError('Choose a PDF or DOCX file.')
-      return
-    }
-    if (selected.size > 10 * 1024 * 1024) {
-      setFile(null)
-      setError('The file must be 10 MB or smaller.')
-      return
-    }
-    setError('')
-    setFile(selected)
-  }
-
-  return <section className="detail-card document-card">
-    <h3><Icon name="file" />{title}</h3>
-    <div className={`upload-empty${file ? ' upload-selected' : ''}`}>
-      {file ? <>
-        <span className="selected-file-icon"><Icon name="file" /></span>
-        <strong className="selected-file-name" title={file.name}>{file.name}</strong>
-        <p>{formatFileSize(file.size)} · ready when storage is connected</p>
-        <div className="file-actions">
-          <label className="outline-button file-picker" htmlFor={inputId}>Choose another</label>
-          <button className="file-remove" type="button" onClick={() => { setFile(null); setError('') }}>Remove</button>
-        </div>
-        <small>This selection is local only. Uploading will be enabled after private storage is configured.</small>
-      </> : <>
-        <Icon name="file" />
-        <strong>No {title.toLowerCase()} uploaded</strong>
-        <p>Choose a file to prepare it for this job.</p>
-        <label className="primary-button file-picker" htmlFor={inputId}>Choose file</label>
-        <small>PDF or DOCX, up to 10 MB</small>
-      </>}
-      <input className="file-input-hidden" id={inputId} type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={selectFile} onClick={event => { event.currentTarget.value = '' }} />
-    </div>
-    {error && <p className="file-error" role="alert">{error}</p>}
-  </section>
-}
 function formatDate(value: string | null) { if (!value) return ''; const date = new Date(`${value.slice(0, 10)}T12:00:00`); return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date) }
-function formatFileSize(size: number) { return size < 1024 * 1024 ? `${Math.max(1, Math.round(size / 1024))} KB` : `${(size / (1024 * 1024)).toFixed(1)} MB` }

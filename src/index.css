@@ -32,3 +32,30 @@
 .file-input-hidden:focus-visible+.file-picker,.file-picker:focus-visible{outline:3px solid rgba(7,87,72,.22);outline-offset:3px}
 .file-error{margin:12px 0 0;color:#9b2830;font-size:13px}
 @media(max-width:760px){.upload-selected{min-height:270px}.job-not-found{padding-top:95px}}
+
+/* Job document cards */
+.document-card h3{flex-wrap:wrap;min-width:0}
+.document-card-icon{font-size:25px;color:var(--green);line-height:1}
+.document-status-badge{margin-left:auto;padding:5px 9px;border-radius:999px;background:#eef2ef;color:#55635f;font:600 11px/1.2 Manrope,sans-serif;letter-spacing:.2px;white-space:nowrap}
+.document-status-badge.is-uploaded{background:#e5f1e8;color:#27613c}
+.document-status-badge.is-uploading,.document-status-badge.is-replacing,.document-status-badge.is-deleting{background:#edf1f7;color:#405776}
+.document-status-badge.is-error{background:#f9e9e8;color:#9b2830}
+.document-state-content{display:grid;gap:15px;min-width:0}
+.document-empty-state{min-height:230px;border:1px dashed #b9c5c5;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:9px}
+.document-empty-icon{font-size:42px;color:#7e858b;line-height:1}
+.document-empty-state strong{font-size:16px}
+.document-empty-state p,.document-help{color:#6e7889;margin:0;font-size:13px;line-height:1.45}
+.document-empty-state .primary-button{min-height:44px;margin-top:5px}
+.document-file-summary{display:flex;align-items:flex-start;gap:13px;min-width:0;padding:15px;border:1px solid #dfe5e2;border-radius:8px;background:#fbfcfa}
+.document-file-icon{width:44px;height:48px;flex:none;border-radius:6px;background:#eaf1eb;color:var(--green);display:grid;place-items:center;font:700 10px Manrope,sans-serif}
+.document-file-info{display:grid;gap:6px;min-width:0;color:#68758a;font-size:13px;line-height:1.4}
+.document-file-name{color:var(--navy);font-size:15px;overflow-wrap:anywhere;word-break:break-word}
+.document-card-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;min-width:0}
+.document-card-actions button{min-width:0;min-height:44px;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.document-card-actions button:disabled{opacity:.6;cursor:not-allowed}
+.document-progress-state{min-height:150px;display:flex;align-items:center;justify-content:center;gap:14px;padding:20px;color:#53647a}
+.document-progress-state>div{display:grid;gap:5px;min-width:0}
+.document-progress-state strong{color:var(--navy);overflow-wrap:anywhere}
+.document-progress-state small{color:#6e7889;line-height:1.4}
+.document-error{margin:0;padding:12px 14px;border-radius:7px;background:#fff0ef;color:#9b2830;font-size:14px;line-height:1.45;overflow-wrap:anywhere}
+@media(max-width:760px){.document-status-badge{margin-left:0}.document-empty-state{min-height:200px;padding:18px}.document-card-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.document-card-actions button{width:100%;padding:10px 8px;font-size:14px;line-height:1.25}.document-file-summary{padding:12px;gap:10px}.document-file-name{font-size:14px}.document-progress-state{justify-content:flex-start;min-height:130px;padding:14px}}
