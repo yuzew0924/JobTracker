@@ -27,8 +27,3 @@ export async function updateJob(client: SupabaseClient, id: string, input: JobIn
   if (error) throw error
   return data as Job
 }
-
-export async function deleteJob(client: SupabaseClient, id: string): Promise<void> {
-  const { error } = await client.from('jobs').delete().eq('id', id)
-  if (error) throw error
-}

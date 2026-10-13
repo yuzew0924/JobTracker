@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react'
 import NextLink from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createJob, deleteJob, updateJob } from '@/lib/jobs'
+import { deleteJobWithDocuments } from '@/lib/job-cleanup'
+import { createJob, updateJob } from '@/lib/jobs'
 import { listJobsWithDocumentStatus } from '@/lib/job-list'
 import { createClient } from '@/lib/supabase/client'
 import { JOB_STATUSES, type Job, type JobInput, type JobListItem, type JobStatus } from '@/lib/types/job'
@@ -92,7 +93,7 @@ export function JobDetailPage({ initialJob }: { initialJob: Job }) {
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [confirming, deleting])
-  async function remove() { setDeleting(true); setError(''); try { await deleteJob(getSupabase(), job.id); navigate('/jobs') } catch (err) { setError(errorMessage(err)); setConfirming(false) } finally { setDeleting(false) } }
+  async function remove() { setDeleting(true); setError(''); try { await deleteJobWithDocuments(job.id); navigate('/jobs') } catch (err) { setError(errorMessage(err)); setConfirming(false) } finally { setDeleting(false) } }
   return <main className="workspace detail-workspace"><Link className="back-link" to="/jobs"><Icon name="back" />Back to jobs</Link><header className="detail-hero"><span className="company-logo-large">{job.company_name[0]?.toUpperCase()}</span><div><div className="detail-title-row"><h1>{job.position_title}</h1><StatusBadge status={job.status} /></div><h2>{job.company_name}</h2><p><span><Icon name="pin" />{job.location || 'No location'}</span><span><Icon name="calendar" />{job.applied_date ? `Applied on ${formatDate(job.applied_date)}` : 'Not applied yet'}</span></p></div><div className="detail-buttons"><Link className="primary-button" to={`/jobs/${job.id}/edit`}><Icon name="edit" />Edit job</Link><button className="danger-button" onClick={() => setConfirming(true)}><Icon name="trash" />Delete</button></div></header>{error && <div className="form-message error">{error}</div>}<div className="detail-columns"><div className="detail-left"><InfoCard title="Job information"><dl><dt>Job URL</dt><dd>{job.job_url ? <a href={job.job_url} target="_blank" rel="noreferrer">{job.job_url} ↗</a> : '—'}</dd><dt>Application deadline</dt><dd>{formatDate(job.application_deadline) || '—'}</dd><dt>Date applied</dt><dd>{formatDate(job.applied_date) || '—'}</dd><dt>Last updated</dt><dd>{formatDate(job.updated_at) || '—'}</dd></dl></InfoCard><TextCard title="Job description" text={job.job_description || 'No job description added.'} /><TextCard title="Notes" text={job.notes || 'No notes added.'} footer={`Last updated ${formatDate(job.updated_at)}`} /></div><div className="detail-right"><JobDocumentsPanel jobId={job.id} /></div></div>{confirming && <div className="modal" onMouseDown={event => { if (event.target === event.currentTarget && !deleting) setConfirming(false) }}><section role="dialog" aria-modal="true" aria-labelledby="delete-job-title"><h2 id="delete-job-title">Delete this job?</h2><p>This action cannot be undone.</p><div><button className="outline-button" type="button" autoFocus disabled={deleting} onClick={() => setConfirming(false)}>Cancel</button><button className="danger-button solid" type="button" disabled={deleting} onClick={() => void remove()}>{deleting ? 'Deleting…' : 'Delete job'}</button></div></section></div>}</main>
 }
 function InfoCard({ title, children }: { title: string; children: ReactNode }) { return <section className="detail-card"><h3>{title}</h3>{children}</section> }
