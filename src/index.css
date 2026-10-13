@@ -63,3 +63,11 @@
 .document-state.ready i{background:#3b8a5b}
 .jobs-load-error{display:grid;justify-items:start;gap:12px;padding:20px;border:1px solid #f1c9cc;border-radius:10px;background:#fff1f1;color:#9b2830}
 .jobs-load-error p{margin:0;overflow-wrap:anywhere}
+.job-documents-panel{display:grid;gap:20px;min-width:0}
+.document-panel-error{display:grid;gap:12px;justify-items:start;padding:18px;border:1px solid #f1c9cc;border-radius:9px;background:#fff1f1;color:#9b2830}
+.document-panel-error p{margin:0;overflow-wrap:anywhere}
+.document-delete-confirm{display:flex;align-items:center;flex-wrap:wrap;gap:9px;padding:12px;border:1px solid #efc2c3;border-radius:8px;background:#fff8f8}
+.document-delete-confirm span{flex:1 1 100%;font-weight:600;color:#7b2529}
+.document-delete-confirm button{min-height:42px;padding:8px 12px;font-size:14px}
+@media(max-width:900px){.jobs-table{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}.jobs-row{min-width:780px}.detail-hero{flex-wrap:wrap;gap:14px}.detail-buttons{margin-left:auto}}
+@media(max-width:760px){.document-delete-confirm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.document-delete-confirm span{grid-column:1/-1}.document-delete-confirm button{width:100%;padding:9px 6px;font-size:13px}.detail-buttons{width:100%;margin:6px 0 0}.detail-buttons>*{flex:1}.modal{padding:14px}.modal section{padding:22px}.modal section>div{flex-wrap:wrap}.modal section>div>*{flex:1}}

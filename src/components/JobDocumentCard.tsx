@@ -5,6 +5,7 @@ import { useId, useRef, useState, type ChangeEvent } from 'react'
 export type JobDocumentStatus = 'empty' | 'selected' | 'uploading' | 'uploaded' | 'replacing' | 'deleting' | 'error'
 
 export type JobDocumentMetadata = {
+  id: string
   fileName: string
   fileSize: number
   uploadedAt: string
@@ -40,6 +41,8 @@ export function JobDocumentCard({ title, status: externalStatus, document, error
   const [operation, setOperation] = useState<'uploading' | 'replacing' | 'deleting' | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [retryAction, setRetryAction] = useState<DocumentAction | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const operationLock = useRef(false)
   const [documentOverride, setDocumentOverride] = useState<{ source: JobDocumentMetadata | null | undefined; value: JobDocumentMetadata | null } | null>(null)
 
   const activeDocument = documentOverride && documentOverride.source === document ? documentOverride.value : document ?? null
@@ -83,6 +86,8 @@ export function JobDocumentCard({ title, status: externalStatus, document, error
   }
 
   async function runAction(action: DocumentAction) {
+    if (operationLock.current) return
+    operationLock.current = true
     setLocalError('')
     try {
       if (action.type === 'upload') {
@@ -113,6 +118,7 @@ export function JobDocumentCard({ title, status: externalStatus, document, error
       setLocalError(caught instanceof Error ? caught.message : 'Something went wrong. Please try again.')
       setRetryAction(action)
     } finally {
+      operationLock.current = false
       setOperation(null)
       setDownloading(false)
     }
@@ -148,7 +154,7 @@ export function JobDocumentCard({ title, status: externalStatus, document, error
     return <div className="document-card-actions">
       <button className="outline-button" type="button" disabled={disabled || downloading} onClick={() => void runAction({ type: 'download', document: activeDocument })}>{downloading ? 'Preparing download…' : 'Download'}</button>
       <button className="outline-button" type="button" disabled={disabled} onClick={chooseFile}>Replace</button>
-      <button className="danger-button" type="button" disabled={disabled} onClick={() => void runAction({ type: 'delete', document: activeDocument })}>Delete</button>
+      <button className="danger-button" type="button" disabled={disabled} onClick={() => setConfirmingDelete(true)}>Delete</button>
     </div>
   }
 
@@ -172,6 +178,7 @@ export function JobDocumentCard({ title, status: externalStatus, document, error
         <button className="outline-button" type="button" onClick={activeDocument ? clearSelection : chooseFile}>{activeDocument ? 'Cancel' : 'Choose file'}</button>
       </div>
       {activeDocument && renderDocumentActions()}
+      {confirmingDelete && activeDocument && <div className="document-delete-confirm" role="group" aria-label={`Confirm deleting ${title}`}><span>Delete this file?</span><button className="outline-button" type="button" onClick={() => setConfirmingDelete(false)}>Keep file</button><button className="danger-button" type="button" onClick={() => { setConfirmingDelete(false); void runAction({ type: 'delete', document: activeDocument }) }}>Confirm delete</button></div>}
       <small className="document-help">PDF or DOCX, up to 10 MB</small>
     </div>}
 
@@ -180,6 +187,7 @@ export function JobDocumentCard({ title, status: externalStatus, document, error
     {status === 'uploaded' && <div className="document-state-content">
       {activeDocument ? <DocumentDetails document={activeDocument} /> : <p className="document-help">The document has been uploaded.</p>}
       {renderDocumentActions()}
+      {confirmingDelete && activeDocument && <div className="document-delete-confirm" role="group" aria-label={`Confirm deleting ${title}`}><span>Delete this file?</span><button className="outline-button" type="button" onClick={() => setConfirmingDelete(false)}>Keep file</button><button className="danger-button" type="button" onClick={() => { setConfirmingDelete(false); void runAction({ type: 'delete', document: activeDocument }) }}>Confirm delete</button></div>}
       <small className="document-help">PDF or DOCX, up to 10 MB</small>
     </div>}
 
@@ -204,6 +212,7 @@ export function JobDocumentCard({ title, status: externalStatus, document, error
         <button className="primary-button" type="button" onClick={() => void retry()}>{retryAction || onRetry ? 'Try again' : 'Choose another file'}</button>
       </div>
       {renderDocumentActions()}
+      {confirmingDelete && activeDocument && <div className="document-delete-confirm" role="group" aria-label={`Confirm deleting ${title}`}><span>Delete this file?</span><button className="outline-button" type="button" onClick={() => setConfirmingDelete(false)}>Keep file</button><button className="danger-button" type="button" onClick={() => { setConfirmingDelete(false); void runAction({ type: 'delete', document: activeDocument }) }}>Confirm delete</button></div>}
       <small className="document-help">PDF or DOCX, up to 10 MB</small>
     </div>}
   </section>
