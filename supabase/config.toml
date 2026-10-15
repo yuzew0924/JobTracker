@@ -165,9 +165,9 @@ site_url = "https://job-tracker-three-pied.vercel.app"
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
-  "http://localhost:3000/auth/confirm",
+  "http://localhost:3000/**",
   "https://job-tracker-three-pied.vercel.app/auth/confirm",
-  "https://job-tracker-a8xzceqyo-yuzew924-s-projects.vercel.app/auth/confirm",
+  "https://*-yuzew924-s-projects.vercel.app/**",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
