@@ -18,3 +18,7 @@ export type DocumentDownload = {
   expiresIn: number
   fileName: string
 }
+
+export type DocumentPreview = DocumentDownload & {
+  mimeType: string | null
+}

@@ -1,8 +1,10 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useState } from 'react'
 import {
   createDocumentDownloadUrl,
+  createDocumentPreviewUrl,
   deleteJobDocument,
   listJobDocuments,
   replaceJobDocument,
@@ -15,6 +17,11 @@ const DOCUMENTS: { type: DocumentType; title: string }[] = [
   { type: 'resume', title: 'Resume' },
   { type: 'cover_letter', title: 'Cover letter' },
 ]
+
+const DocumentPreviewModal = dynamic(
+  () => import('@/src/components/DocumentPreviewModal').then(module => module.DocumentPreviewModal),
+  { ssr: false },
+)
 
 function toCardDocument(document: JobDocument): JobDocumentMetadata {
   return {
@@ -29,6 +36,7 @@ export function JobDocumentsPanel({ jobId }: { jobId: string }) {
   const [documents, setDocuments] = useState<JobDocument[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof createDocumentPreviewUrl>> | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -86,6 +94,10 @@ export function JobDocumentsPanel({ jobId }: { jobId: string }) {
     window.location.assign(result.url)
   }
 
+  async function openPreview(id: string) {
+    setPreview(await createDocumentPreviewUrl(id))
+  }
+
   return <div className="job-documents-panel" aria-busy={loading}>
     {loading && <p className="document-panel-message" role="status">Loading documents…</p>}
     {error && <div className="document-panel-error" role="alert"><p>{error}</p><button className="outline-button" type="button" onClick={() => void refresh().catch(() => {})}>Try again</button></div>}
@@ -98,10 +110,12 @@ export function JobDocumentsPanel({ jobId }: { jobId: string }) {
         document={metadata}
         onUpload={file => upload(type, file)}
         onReplace={(file, current) => replace(current.id, file)}
+        onPreview={current => openPreview(current.id)}
         onDownload={current => download(current.id)}
         onDelete={current => remove(current.id)}
         onRetry={refresh}
       />
     })}
+    {preview && <DocumentPreviewModal preview={preview} onClose={() => setPreview(null)} />}
   </div>
 }

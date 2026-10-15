@@ -14,7 +14,7 @@ export type JobDocumentMetadata = {
 type DocumentAction =
   | { type: 'upload'; file: File }
   | { type: 'replace'; file: File; document: JobDocumentMetadata }
-  | { type: 'download' | 'delete'; document: JobDocumentMetadata }
+  | { type: 'preview' | 'download' | 'delete'; document: JobDocumentMetadata }
 
 type ActionResult = JobDocumentMetadata | void
 
@@ -25,6 +25,7 @@ export type JobDocumentCardProps = {
   error?: string
   onUpload?: (file: File) => ActionResult | Promise<ActionResult>
   onReplace?: (file: File, document: JobDocumentMetadata) => ActionResult | Promise<ActionResult>
+  onPreview?: (document: JobDocumentMetadata) => void | Promise<void>
   onDownload?: (document: JobDocumentMetadata) => void | Promise<void>
   onDelete?: (document: JobDocumentMetadata) => void | Promise<void>
   onRetry?: () => void | Promise<void>
@@ -33,13 +34,14 @@ export type JobDocumentCardProps = {
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ACCEPTED_FILE_TYPES = '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
-export function JobDocumentCard({ title, status: externalStatus, document, error, onUpload, onReplace, onDownload, onDelete, onRetry }: JobDocumentCardProps) {
+export function JobDocumentCard({ title, status: externalStatus, document, error, onUpload, onReplace, onPreview, onDownload, onDelete, onRetry }: JobDocumentCardProps) {
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const [localFile, setLocalFile] = useState<File | null>(null)
   const [localError, setLocalError] = useState('')
   const [operation, setOperation] = useState<'uploading' | 'replacing' | 'deleting' | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
   const [retryAction, setRetryAction] = useState<DocumentAction | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const operationLock = useRef(false)
@@ -54,7 +56,7 @@ export function JobDocumentCard({ title, status: externalStatus, document, error
   const statusLabels: Record<JobDocumentStatus, string> = {
     empty: 'Empty', selected: 'Selected', uploading: 'Uploading', uploaded: 'Uploaded', replacing: 'Replacing', deleting: 'Deleting', error: 'Error',
   }
-  const isBusy = status === 'uploading' || status === 'replacing' || status === 'deleting' || downloading
+  const isBusy = status === 'uploading' || status === 'replacing' || status === 'deleting' || downloading || previewing
   const message = localError || error || 'Something went wrong. Please try again.'
 
   function chooseFile() {
@@ -102,6 +104,10 @@ export function JobDocumentCard({ title, status: externalStatus, document, error
         const result = await onReplace(action.file, action.document)
         if (result) setDocumentOverride({ source: document, value: result })
         setLocalFile(null)
+      } else if (action.type === 'preview') {
+        if (!onPreview) throw new Error('This document action is not connected yet.')
+        setPreviewing(true)
+        await onPreview(action.document)
       } else if (action.type === 'download') {
         if (!onDownload) throw new Error('This document action is not connected yet.')
         setDownloading(true)
@@ -121,6 +127,7 @@ export function JobDocumentCard({ title, status: externalStatus, document, error
       operationLock.current = false
       setOperation(null)
       setDownloading(false)
+      setPreviewing(false)
     }
   }
 
@@ -152,6 +159,7 @@ export function JobDocumentCard({ title, status: externalStatus, document, error
   function renderDocumentActions(disabled = false) {
     if (!activeDocument) return null
     return <div className="document-card-actions">
+      <button className="primary-button" type="button" disabled={disabled || previewing} onClick={() => void runAction({ type: 'preview', document: activeDocument })}>{previewing ? 'Preparing preview…' : 'Preview'}</button>
       <button className="outline-button" type="button" disabled={disabled || downloading} onClick={() => void runAction({ type: 'download', document: activeDocument })}>{downloading ? 'Preparing download…' : 'Download'}</button>
       <button className="outline-button" type="button" disabled={disabled} onClick={chooseFile}>Replace</button>
       <button className="danger-button" type="button" disabled={disabled} onClick={() => setConfirmingDelete(true)}>Delete</button>

@@ -2,11 +2,12 @@
 
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
-import type { DocumentDownload, DocumentType, JobDocument } from '@/lib/types/document'
+import type { DocumentDownload, DocumentPreview, DocumentType, JobDocument } from '@/lib/types/document'
 
 const BUCKET = 'job-documents'
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const SIGNED_URL_LIFETIME_SECONDS = 60
+const PREVIEW_URL_LIFETIME_SECONDS = 5 * 60
 const MIME_TYPES = {
   pdf: 'application/pdf',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -86,6 +87,22 @@ export async function createDocumentDownloadUrl(documentId: string): Promise<Doc
     url: data.signedUrl,
     expiresIn: SIGNED_URL_LIFETIME_SECONDS,
     fileName: document.file_name,
+  }
+}
+
+export async function createDocumentPreviewUrl(documentId: string): Promise<DocumentPreview> {
+  const { client } = await authenticatedClient()
+  const document = await requireOwnedDocument(client, documentId)
+  const { data, error } = await client.storage
+    .from(BUCKET)
+    .createSignedUrl(document.storage_path, PREVIEW_URL_LIFETIME_SECONDS)
+
+  if (error) throw new Error(`Unable to prepare preview: ${error.message}`)
+  return {
+    url: data.signedUrl,
+    expiresIn: PREVIEW_URL_LIFETIME_SECONDS,
+    fileName: document.file_name,
+    mimeType: document.mime_type,
   }
 }
 
