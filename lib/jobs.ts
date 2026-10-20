@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Job, JobInput } from '@/lib/types/job'
+import { JOB_STATUSES, type Job, type JobInput, type JobStatus } from '@/lib/types/job'
 
 export async function listJobs(client: SupabaseClient): Promise<Job[]> {
   const { data, error } = await client.from('jobs').select('*').order('updated_at', { ascending: false })
@@ -25,5 +25,20 @@ export async function createJob(client: SupabaseClient, input: JobInput): Promis
 export async function updateJob(client: SupabaseClient, id: string, input: JobInput): Promise<Job> {
   const { data, error } = await client.from('jobs').update(input).eq('id', id).select('*').single()
   if (error) throw error
+  return data as Job
+}
+
+export async function updateJobStatus(client: SupabaseClient, id: string, status: JobStatus): Promise<Job> {
+  if (!JOB_STATUSES.includes(status)) throw new Error('Choose a valid job status.')
+
+  const { data, error } = await client
+    .from('jobs')
+    .update({ status })
+    .eq('id', id)
+    .select('*')
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) throw new Error('Job not found or you do not have permission to update it.')
   return data as Job
 }

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ComponentProps, type FormEvent, type
 import NextLink from 'next/link'
 import { useRouter } from 'next/navigation'
 import { deleteJobWithDocuments } from '@/lib/job-cleanup'
-import { createJob, updateJob } from '@/lib/jobs'
+import { createJob, updateJob, updateJobStatus } from '@/lib/jobs'
 import { listJobsWithDocumentStatus } from '@/lib/job-list'
 import { createClient } from '@/lib/supabase/client'
 import { JOB_STATUSES, type Job, type JobInput, type JobListItem, type JobStatus } from '@/lib/types/job'
@@ -38,6 +38,8 @@ export function AppShell({ children, email }: { children: ReactNode; email: stri
 
 export function JobsPage() {
   const [jobs, setJobs] = useState<JobListItem[]>([]), [loading, setLoading] = useState(true), [error, setError] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('All')
+  const [updatingJobId, setUpdatingJobId] = useState<string | null>(null)
+  const [statusError, setStatusError] = useState('')
   useEffect(() => {
     let active = true
     listJobsWithDocumentStatus()
@@ -51,10 +53,24 @@ export function JobsPage() {
     setError('')
     try { setJobs(await listJobsWithDocumentStatus()) } catch (err) { setError(errorMessage(err)) } finally { setLoading(false) }
   }
+  async function changeStatus(jobId: string, nextStatus: JobStatus) {
+    const current = jobs.find(job => job.id === jobId)
+    if (!current || current.status === nextStatus || updatingJobId) return
+    setUpdatingJobId(jobId)
+    setStatusError('')
+    try {
+      const updated = await updateJobStatus(getSupabase(), jobId, nextStatus)
+      setJobs(items => items.map(job => job.id === jobId ? { ...job, ...updated } : job))
+    } catch (err) {
+      setStatusError(`Unable to update ${current.company_name}: ${errorMessage(err)}`)
+    } finally {
+      setUpdatingJobId(null)
+    }
+  }
   const filtered = useMemo(() => jobs.filter(job => (status === 'All' || job.status === status) && `${job.company_name} ${job.position_title}`.toLowerCase().includes(query.toLowerCase())), [jobs, query, status])
-  return <main className="workspace jobs-page"><header className="workspace-heading"><div><h1>My Jobs</h1><p>Track every opportunity and keep its files together.</p></div><Link className="primary-button add-button" to="/jobs/new"><Icon name="plus" />Add job</Link></header><div className="filters"><label className="search-box"><Icon name="search" /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search companies or positions..." /></label><label className="status-filter"><span>Status</span><select value={status} onChange={e => setStatus(e.target.value)}><option>All</option>{JOB_STATUSES.map(value => <option key={value}>{value}</option>)}</select></label></div>{error ? <div className="jobs-load-error" role="alert"><p>{error}</p><button className="outline-button" type="button" onClick={() => void reloadJobs()}>Try again</button></div> : loading ? <div className="loading-panel" role="status"><span className="spinner" />Loading jobs and documents…</div> : <JobsTable jobs={filtered} total={jobs.length} />}</main>
+  return <main className="workspace jobs-page"><header className="workspace-heading"><div><h1>My Jobs</h1><p>Track every opportunity and keep its files together.</p></div><Link className="primary-button add-button" to="/jobs/new"><Icon name="plus" />Add job</Link></header><div className="filters"><label className="search-box"><Icon name="search" /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search companies or positions..." /></label><label className="status-filter"><span>Status</span><select value={status} onChange={e => setStatus(e.target.value)}><option>All</option>{JOB_STATUSES.map(value => <option key={value}>{value}</option>)}</select></label></div>{statusError && <div className="jobs-inline-error" role="alert">{statusError}<button type="button" aria-label="Dismiss status update error" onClick={() => setStatusError('')}>×</button></div>}{error ? <div className="jobs-load-error" role="alert"><p>{error}</p><button className="outline-button" type="button" onClick={() => void reloadJobs()}>Try again</button></div> : loading ? <div className="loading-panel" role="status"><span className="spinner" />Loading jobs and documents…</div> : <JobsTable jobs={filtered} total={jobs.length} updatingJobId={updatingJobId} onStatusChange={changeStatus} />}</main>
 }
-function JobsTable({ jobs, total }: { jobs: JobListItem[]; total: number }) { return <section className="jobs-table"><div className="jobs-row jobs-labels"><span>Company</span><span>Position</span><span>Status</span><span>Location</span><span>Applied date</span><span>Resume</span><span>Cover letter</span><span>Actions</span></div>{jobs.length ? jobs.map(job => <Link className="jobs-row jobs-data" to={`/jobs/${job.id}`} key={job.id}><span className="company-cell"><b>{job.company_name[0]?.toUpperCase()}</b><strong>{job.company_name}</strong></span><span>{job.position_title}</span><span><StatusBadge status={job.status} /></span><span>{job.location || '—'}</span><span>{formatDate(job.applied_date) || '—'}</span><DocumentState ready={job.document_status.resume} /><DocumentState ready={job.document_status.cover_letter} /><span className="more-cell"><Icon name="more" /></span></Link>) : <div className="empty-jobs"><h2>No jobs found</h2><p>{total ? 'Try changing your search or status filter.' : 'Add your first opportunity to get started.'}</p></div>}<footer>Showing {jobs.length} of {total} jobs</footer></section> }
+function JobsTable({ jobs, total, updatingJobId, onStatusChange }: { jobs: JobListItem[]; total: number; updatingJobId: string | null; onStatusChange: (jobId: string, status: JobStatus) => void | Promise<void> }) { return <section className="jobs-table"><div className="jobs-row jobs-labels"><span>Company</span><span>Position</span><span>Status</span><span>Location</span><span>Applied date</span><span>Resume</span><span>Cover letter</span><span>Actions</span></div>{jobs.length ? jobs.map(job => { const href = `/jobs/${job.id}`, saving = updatingJobId === job.id; return <div className="jobs-row jobs-data" key={job.id}><Link className="company-cell jobs-cell-link" to={href}><b>{job.company_name[0]?.toUpperCase()}</b><strong>{job.company_name}</strong></Link><Link className="jobs-cell-link" to={href}>{job.position_title}</Link><label className={`inline-status status-${job.status.toLowerCase()}${saving ? ' is-saving' : ''}`}><span className="sr-only">Status for {job.company_name}</span><i aria-hidden="true" /><select value={job.status} disabled={Boolean(updatingJobId)} onChange={event => void onStatusChange(job.id, event.target.value as JobStatus)} aria-label={`Status for ${job.company_name}`}>{JOB_STATUSES.map(value => <option key={value}>{value}</option>)}</select>{saving && <span className="inline-status-saving" role="status">Saving…</span>}</label><Link className="jobs-cell-link" to={href}>{job.location || '—'}</Link><Link className="jobs-cell-link" to={href}>{formatDate(job.applied_date) || '—'}</Link><Link className="jobs-cell-link" to={href}><DocumentState ready={job.document_status.resume} /></Link><Link className="jobs-cell-link" to={href}><DocumentState ready={job.document_status.cover_letter} /></Link><Link className="more-cell jobs-cell-link" to={href} aria-label={`View ${job.position_title} at ${job.company_name}`}><Icon name="more" /></Link></div> }) : <div className="empty-jobs"><h2>No jobs found</h2><p>{total ? 'Try changing your search or status filter.' : 'Add your first opportunity to get started.'}</p></div>}<footer>Showing {jobs.length} of {total} jobs</footer></section> }
 function DocumentState({ ready }: { ready: boolean }) { return <span className={`document-state ${ready ? 'ready' : 'missing'}`}><i aria-hidden="true">{ready ? '✓' : '−'}</i>{ready ? 'Ready' : 'Missing'}</span> }
 function StatusBadge({ status }: { status: JobStatus }) { return <span className={`status-pill status-${status.toLowerCase()}`}><i />{status}</span> }
 

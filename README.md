@@ -16,6 +16,7 @@ Jobfolio is a private, multi-user job application tracker. Each user can manage 
 ### Job tracking
 
 - Create, view, edit, and delete job applications
+- Change a job's status directly from the My Jobs table
 - Search jobs and filter them by application status
 - Track company, role, location, URL, status, dates, description, and notes
 - New jobs default to `Applied` with today's application date
